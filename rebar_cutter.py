@@ -3,9 +3,9 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import linprog
 from fractions import Fraction
+import argparse
 
 STANDARD_REBAR_LENGTH = 240
-FILE_PATH = 'rebar_file.xlsx'
 
 def fraction_to_decimal(value):
     if isinstance(value, str):
@@ -142,11 +142,26 @@ def wrapper_optimization_loop(df):
     print(f"\nOverall Total Waste: {total_waste_accumulated} inches")
     print(f"Total Standard Rebars Needed: {total_rebars_used}")
 
-# Assuming df is preprocessed and ready.
-file_path = FILE_PATH
-df = pd.read_excel(file_path, engine='openpyxl', usecols=['Label', 'Count', 'Bar Length'])
-df.dropna(subset=['Count'], inplace=True)
-df = df[df['Count'] > 0]
-df['Bar Length'] = df['Bar Length'].apply(fraction_to_decimal)
+def main():
+    # Setup command-line interface
+    parser = argparse.ArgumentParser(description="Process Excel file for Rebar Optimization.")
+    parser.add_argument("file_path", type=str, help="Path to the input Excel file.")
+    
+    # Parse arguments
+    args = parser.parse_args()
+    file_path = args.file_path
 
-wrapper_optimization_loop(df)
+    try:
+        # Load data and preprocess
+        df = pd.read_excel(file_path, engine='openpyxl', usecols=['Label', 'Count', 'Bar Length'])
+        df.dropna(subset=['Count'], inplace=True)
+        df = df[df['Count'] > 0]
+        df['Bar Length'] = df['Bar Length'].apply(fraction_to_decimal)
+        
+        # Run the optimization wrapper function
+        wrapper_optimization_loop(df)
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+if __name__ == "__main__":
+    main()

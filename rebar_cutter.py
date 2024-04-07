@@ -1,3 +1,4 @@
+# Using code from https://towardsdatascience.com/column-generation-in-linear-programming-and-the-cutting-stock-problem-3c697caf4e2b
 import numpy as np
 import pandas as pd
 from scipy.optimize import linprog

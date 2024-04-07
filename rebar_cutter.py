@@ -126,7 +126,7 @@ def try_using_waste(labels, lengths, quantities_needed, waste_pieces, cutting_in
 
     return total_waste, quantities_needed, waste_pieces, cutting_instructions
 
-def wrapper_optimization_loop(df, chunk_size=56):
+def wrapper_optimization_loop(df, chunk_size=56): # Works with this chunck size as max, i dont know why
     df, total_additional_rebars = preprocess_dataframe(df)
     total_waste_accumulated = 0
     rebar_id_start = 1

@@ -5,6 +5,7 @@ from scipy.optimize import linprog
 from fractions import Fraction
 
 STANDARD_REBAR_LENGTH = 240
+FILE_PATH = 'rebar_file.xlsx'
 
 def fraction_to_decimal(value):
     if isinstance(value, str):
@@ -142,7 +143,7 @@ def wrapper_optimization_loop(df):
     print(f"Total Standard Rebars Needed: {total_rebars_used}")
 
 # Assuming df is preprocessed and ready.
-file_path = 'rebar_file.xlsx'
+file_path = FILE_PATH
 df = pd.read_excel(file_path, engine='openpyxl', usecols=['Label', 'Count', 'Bar Length'])
 df.dropna(subset=['Count'], inplace=True)
 df = df[df['Count'] > 0]

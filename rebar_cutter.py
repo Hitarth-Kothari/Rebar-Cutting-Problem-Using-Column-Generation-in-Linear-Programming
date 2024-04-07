@@ -39,12 +39,16 @@ def preprocess_dataframe(df):
     return df, total_additional_rebars
 
 def solve_knapsack(total_width, widths, duals):
-    return linprog(-duals, A_ub=np.atleast_2d(widths), b_ub=np.atleast_1d(total_width), bounds=(0, np.inf), method='highs', options={"disp": False}, integrality=1)
+    try:
+        assert widths.shape[0] == duals.shape[0], "widths and duals dimension mismatch"
+        solution = linprog(-duals, A_ub=np.atleast_2d(widths), b_ub=np.atleast_1d(total_width), bounds=(0, np.inf), method='highs', options={"disp": False}, integrality=1)
+        return solution
+    except Exception as e:
+        print(f"Error in solve_knapsack: {e}")
+        raise
 
-def process_and_display_results(solution, patterns_matrix, labels, lengths, rebar_id_start, quantities_needed):
-    cutting_instructions = []
+def process_and_display_results(solution, patterns_matrix, labels, lengths, rebar_id_start, quantities_needed, waste_pieces, cutting_instructions):
     total_waste = 0
-    waste_pieces = []
     rebar_id = rebar_id_start
 
     for pattern_index, pattern_use_count in enumerate(solution.x.astype(int)):
@@ -66,6 +70,26 @@ def process_and_display_results(solution, patterns_matrix, labels, lengths, reba
             waste_pieces.append([rebar_id, waste, pattern_use_count])
             rebar_id += pattern_use_count
 
+    return rebar_id, total_waste, quantities_needed, waste_pieces, cutting_instructions
+
+def main_optimization(labels, lengths, quantities):
+    quantities = np.array(quantities)  # Convert quantities to a numpy array
+    patterns_matrix = np.eye(len(lengths)) * (STANDARD_REBAR_LENGTH // lengths)
+    cost_vector = np.ones_like(lengths)
+    sol = linprog(cost_vector, A_ub=-patterns_matrix, b_ub=-quantities, bounds=(0, None), method='highs')
+    for _ in range(1000):
+        duals = -sol.ineqlin.marginals
+        price_sol = solve_knapsack(STANDARD_REBAR_LENGTH, lengths, duals)
+        if 1 + price_sol.fun < -1e-4:
+            patterns_matrix = np.hstack((patterns_matrix, price_sol.x.reshape((-1, 1))))
+            cost_vector = np.append(cost_vector, 1)
+            sol = linprog(cost_vector, A_ub=-patterns_matrix, b_ub=-quantities, bounds=(0, None), method='highs')
+        else:
+            break
+    solution = linprog(cost_vector, A_ub=-patterns_matrix, b_ub=-quantities, bounds=(0, np.inf), method='highs', integrality=1)
+    return solution, patterns_matrix, labels, lengths
+
+def try_using_waste(labels, lengths, quantities_needed, waste_pieces, cutting_instructions, total_waste):
     # Process to utilize waste pieces after all cuts are made
     for i in range(len(waste_pieces)):
         rebar_id = waste_pieces[i][0]
@@ -88,73 +112,98 @@ def process_and_display_results(solution, patterns_matrix, labels, lengths, reba
         # Update the cutting instructions with the additional cuts from waste
         if updated_cuts:
             cutting_instructions[i] = (update_waste_instruction, updated_cuts)
+    
+    return total_waste, quantities_needed, waste_pieces, cutting_instructions
 
+def wrapper_optimization_loop(df, chunk_size=56):
+    df, total_additional_rebars = preprocess_dataframe(df)
+    total_waste_accumulated = 0
+    rebar_id_start = 1
+    waste_pieces = []
+    cutting_instructions = []
+    final_verification = {label: 0 for label in df['Label'].unique()}  # Tracking produced quantities
+
+    # Create chunks of the dataframe based on chunk_size
+    chunks = [df[i:i+chunk_size] for i in range(0, df.shape[0], chunk_size)]
+
+    for chunk in chunks:
+        print ('Optimizing a Chunk')
+        labels = chunk['Label'].values
+        lengths = chunk['Bar Length'].values
+        quantities = chunk['Count'].values.astype(int)
+        quantities_needed = dict(zip(labels, quantities))
+
+        if len(set(labels)) != len(labels):
+            print('The labels in the Dataset are not unique within a chunk. Please Fix')
+            continue
+
+        # Initialize or update quantities_needed for global tracking
+        for label, quantity in zip(labels, quantities):
+            final_verification[label] -= quantity  # Deduct the required quantity initially
+
+        temp = total_waste_accumulated
+        print('Using wastes')
+        # Try using waste from previous chunks (You need to define this function)
+        total_waste_accumulated, quantities_needed, waste_pieces, cutting_instructions= try_using_waste(labels, lengths, quantities_needed, waste_pieces, cutting_instructions, total_waste_accumulated)
+        temp = temp - total_waste_accumulated
+        print(f"Saved {temp} inches of waste")
+
+        # Process each chunk individually
+        while not all(value <= 0 for value in quantities_needed.values()):
+            solution, patterns_matrix, updated_labels, updated_lengths = main_optimization(labels, lengths, list(quantities_needed.values()))
+            new_rebar_id_start, total_waste, quantities_needed, waste_pieces, cutting_instructions = process_and_display_results(solution, patterns_matrix, updated_labels, updated_lengths, rebar_id_start, quantities_needed, waste_pieces, cutting_instructions)
+            total_waste_accumulated += total_waste
+            rebar_id_start = new_rebar_id_start  # Update for the next chunk
+
+        # Update final verification for produced quantities
+        for label, quantity in zip(labels, quantities):
+            produced_qty = quantity - quantities_needed.get(label, 0)
+            final_verification[label] += produced_qty  # Add back the produced quantity
+        print ('Finished Optimizing a Chunk')
+
+    print_cutting_instructions(cutting_instructions)
+    print_final_verification(df, final_verification)
+
+    total_rebars_used = rebar_id_start - 1 + total_additional_rebars
+    print(f"\nOverall Total Waste: {total_waste_accumulated} inches")
+    print(f"Total Standard Rebars Needed: {total_rebars_used}")
+
+def print_cutting_instructions(cutting_instructions):
     for instruction, cuts in cutting_instructions:
         print(instruction)
         for cut in cuts:
             print(cut)
 
-    return rebar_id, total_waste, quantities_needed
-
-def main_optimization(labels, lengths, quantities):
-    quantities = np.array(quantities)  # Convert quantities to a numpy array
-    patterns_matrix = np.eye(len(lengths)) * (STANDARD_REBAR_LENGTH // lengths)
-    cost_vector = np.ones_like(lengths)
-    sol = linprog(cost_vector, A_ub=-patterns_matrix, b_ub=-quantities, bounds=(0, None), method='highs')
-    
-    for _ in range(1000):
-        duals = -sol.ineqlin.marginals
-        price_sol = solve_knapsack(STANDARD_REBAR_LENGTH, lengths, duals)
-        if 1 + price_sol.fun < -1e-4:
-            patterns_matrix = np.hstack((patterns_matrix, price_sol.x.reshape((-1, 1))))
-            cost_vector = np.append(cost_vector, 1)
-            sol = linprog(cost_vector, A_ub=-patterns_matrix, b_ub=-quantities, bounds=(0, None), method='highs')
-        else:
-            break
-    
-    solution = linprog(cost_vector, A_ub=-patterns_matrix, b_ub=-quantities, bounds=(0, np.inf), method='highs', integrality=1)
-    return solution, patterns_matrix, labels, lengths
-
-
-def wrapper_optimization_loop(df):
-    df, total_additional_rebars = preprocess_dataframe(df)
-    labels = df['Label'].values
-    lengths = df['Bar Length'].values
-    quantities = df['Count'].values.astype(int)
-    quantities_needed = dict(zip(labels, quantities))
-    rebar_id_start = 1
-    total_waste_accumulated = 0
-
-    while not all(value <= 0 for value in quantities_needed.values()):
-        solution, patterns_matrix, updated_labels, updated_lengths = main_optimization(labels, lengths, list(quantities_needed.values()))
-        rebar_id_start, total_waste, quantities_needed = process_and_display_results(solution, patterns_matrix, updated_labels, updated_lengths, rebar_id_start, quantities_needed)
-        total_waste_accumulated += total_waste
-
+def print_final_verification(df, final_verification):
     print("\nFinal Verification and Joining Instructions:")
-    for index, row in df.iterrows():
-        label = row['Label']
-        original_qty = row['Count']
-        produced_qty = original_qty - quantities_needed.get(label, 0)
+    for label, delta_qty in final_verification.items():
+        original_qty = df[df['Label'] == label]['Count'].sum()
+        produced_qty = original_qty + delta_qty  # Adjust based on delta from processing
         print(f"{label}: Required {original_qty}, Produced {produced_qty}, {'Met' if produced_qty >= original_qty else 'Not Met'}")
-        if pd.notnull(row['Joining Instructions']):
-            print(f"  - {row['Joining Instructions']}")
-
-    total_rebars_used = rebar_id_start + total_additional_rebars
-    print(f"\nOverall Total Waste: {total_waste_accumulated} inches")
-    print(f"Total Standard Rebars Needed: {total_rebars_used}")
+        joining_instructions = df[df['Label'] == label]['Joining Instructions'].iloc[0]
+        if pd.notnull(joining_instructions):
+            print(f"  - {joining_instructions}")
 
 def main():
     # Setup command-line interface
-    parser = argparse.ArgumentParser(description="Process Excel file for Rebar Optimization.")
-    parser.add_argument("file_path", type=str, help="Path to the input Excel file.")
+    # parser = argparse.ArgumentParser(description="Process Excel/CSV file for Rebar Optimization.")
+    # parser.add_argument("file_path", type=str, help="Path to the input Excel/CSV file.")
+    # parser.add_argument("-t", "--file_type", type=str, choices=['excel', 'csv'], default="excel", help="Type of the input file (excel or csv).")
     
     # Parse arguments
-    args = parser.parse_args()
-    file_path = args.file_path
+    # args = parser.parse_args()
+    file_path = 'rebar_file.csv'#args.file_path
+    file_type = 'csv'#args.file_type
 
     try:
         # Load data and preprocess
-        df = pd.read_excel(file_path, engine='openpyxl', usecols=['Label', 'Count', 'Bar Length'])
+        if file_type == 'excel':
+            df = pd.read_excel(file_path, engine='openpyxl', usecols=['Label', 'Count', 'Bar Length'])
+        elif file_type == 'csv':
+            df = pd.read_csv(file_path, usecols=['Label', 'Count', 'Bar Length'])
+        else:
+            raise ValueError("Unsupported file type. Use 'excel' or 'csv'.")
+
         df.dropna(subset=['Count'], inplace=True)
         df = df[df['Count'] > 0]
         df['Bar Length'] = df['Bar Length'].apply(fraction_to_decimal)

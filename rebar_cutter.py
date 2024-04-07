@@ -153,7 +153,7 @@ def wrapper_optimization_loop(df, chunk_size=56):
             final_verification[label] -= quantity  # Deduct the required quantity initially
 
         temp = total_waste_accumulated
-        print('Using wastes')
+        print('Using wastes from previous chunck')
         # Try using waste from previous chunks (You need to define this function)
         total_waste_accumulated, quantities_needed, waste_pieces, cutting_instructions= try_using_waste(labels, lengths, quantities_needed, waste_pieces, cutting_instructions, total_waste_accumulated)
         temp = temp - total_waste_accumulated
@@ -164,6 +164,11 @@ def wrapper_optimization_loop(df, chunk_size=56):
             solution, patterns_matrix, updated_labels, updated_lengths = main_optimization(labels, lengths, list(quantities_needed.values()))
             new_rebar_id_start, total_waste, quantities_needed, waste_pieces, cutting_instructions = process_and_display_results(solution, patterns_matrix, updated_labels, updated_lengths, rebar_id_start, quantities_needed, waste_pieces, cutting_instructions)
             total_waste_accumulated += total_waste
+            temp = total_waste_accumulated
+            print(f"Using wastes from {rebar_id_start} to {new_rebar_id_start - 1}")
+            total_waste_accumulated, quantities_needed, waste_pieces, cutting_instructions= try_using_waste(labels, lengths, quantities_needed, waste_pieces, cutting_instructions, total_waste_accumulated)
+            temp = temp - total_waste_accumulated
+            print(f"Saved {temp} inches of waste")
             rebar_id_start = new_rebar_id_start  # Update for the next chunk
 
         # Update final verification for produced quantities

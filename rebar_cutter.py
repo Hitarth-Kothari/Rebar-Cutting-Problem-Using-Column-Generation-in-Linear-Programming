@@ -42,7 +42,7 @@ def solve_knapsack(total_width, widths, duals):
 
 def process_and_display_results(solution, patterns_matrix, labels, lengths, rebar_id_start, quantities_needed):
     cutting_instructions = []
-    total_waste = STANDARD_REBAR_LENGTH * solution.x.sum()
+    total_waste = 0
     waste_pieces = []
     rebar_id = rebar_id_start
 
@@ -58,7 +58,7 @@ def process_and_display_results(solution, patterns_matrix, labels, lengths, reba
                     cuts.append(cut_instruction)
                     waste -= length_count * lengths[length_index]
                     quantities_needed[label] -= length_count * pattern_use_count
-            instruction += f" | Waste: {waste} inches"
+            instruction += f" | Waste: {waste*pattern_use_count} inches"
             cutting_instructions.append((instruction, cuts))
             total_waste += waste * pattern_use_count
             waste_pieces.append([rebar_id, waste, pattern_use_count])
@@ -78,6 +78,7 @@ def process_and_display_results(solution, patterns_matrix, labels, lengths, reba
                     instruction = f"  Cut {num_cuts_from_waste} pieces of {length} inches for {label}"
                     updated_cuts.append(instruction)
                     waste_piece -= length * num_cuts_from_waste
+                    total_waste -= length * num_cuts_from_waste*count
                     quantities_needed[label] -= num_cuts_from_waste*count
                     waste_pieces[i][0] = waste_piece  # Update the remaining waste piece after cutting
                     update_waste_instruction = f"\nRebar {rebar_id} to {rebar_id + count - 1}:" + f" | Waste: {waste_piece*count} inches"
@@ -85,10 +86,6 @@ def process_and_display_results(solution, patterns_matrix, labels, lengths, reba
         # Update the cutting instructions with the additional cuts from waste
         if updated_cuts:
             cutting_instructions[i] = (update_waste_instruction, updated_cuts)
-
-    # Recalculate total waste considering waste pieces used or left
-    total_waste = [ sum(row[i] for row in waste_pieces) for i in range(len(waste_pieces[0])) ][0]
-
 
     for instruction, cuts in cutting_instructions:
         print(instruction)
@@ -152,4 +149,3 @@ df = df[df['Count'] > 0]
 df['Bar Length'] = df['Bar Length'].apply(fraction_to_decimal)
 
 wrapper_optimization_loop(df)
-

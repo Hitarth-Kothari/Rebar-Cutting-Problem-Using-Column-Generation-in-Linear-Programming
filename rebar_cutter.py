@@ -20,7 +20,7 @@ def fraction_to_decimal(value):
 
 def preprocess_dataframe(df):
     df['Additional Standard Rebars'] = 0
-    df['Welding Instructions'] = None
+    df['Joining Instructions'] = None
     total_additional_rebars = 0
     for index, row in df.iterrows():
         if row['Bar Length'] > STANDARD_REBAR_LENGTH:
@@ -33,9 +33,9 @@ def preprocess_dataframe(df):
                 additional_rebars -= 1
             df.at[index, 'Bar Length'] = remaining_length
             if additional_rebars > 0:
-                df.at[index, 'Welding Instructions'] = f"Weld {additional_rebars} standard bars and one {remaining_length}\" piece"
+                df.at[index, 'Joining Instructions'] = f"Join {additional_rebars} standard bars and one {remaining_length}\" piece"
             else:
-                df.at[index, 'Welding Instructions'] = f"Use one {remaining_length}\" piece"
+                df.at[index, 'Joining Instructions'] = f"Use one {remaining_length}\" piece"
     return df, total_additional_rebars
 
 def solve_knapsack(total_width, widths, duals):
@@ -130,14 +130,14 @@ def wrapper_optimization_loop(df):
         rebar_id_start, total_waste, quantities_needed = process_and_display_results(solution, patterns_matrix, updated_labels, updated_lengths, rebar_id_start, quantities_needed)
         total_waste_accumulated += total_waste
 
-    print("\nFinal Verification and Welding Instructions:")
+    print("\nFinal Verification and Joining Instructions:")
     for index, row in df.iterrows():
         label = row['Label']
         original_qty = row['Count']
         produced_qty = original_qty - quantities_needed.get(label, 0)
         print(f"{label}: Required {original_qty}, Produced {produced_qty}, {'Met' if produced_qty >= original_qty else 'Not Met'}")
-        if pd.notnull(row['Welding Instructions']):
-            print(f"  - {row['Welding Instructions']}")
+        if pd.notnull(row['Joining Instructions']):
+            print(f"  - {row['Joining Instructions']}")
 
     total_rebars_used = rebar_id_start + total_additional_rebars
     print(f"\nOverall Total Waste: {total_waste_accumulated} inches")

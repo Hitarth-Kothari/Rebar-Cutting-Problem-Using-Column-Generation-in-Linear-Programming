@@ -138,7 +138,7 @@ def wrapper_optimization_loop(df):
         if pd.notnull(row['Welding Instructions']):
             print(f"  - {row['Welding Instructions']}")
 
-    total_rebars_used = rebar_id_start - 1 + total_additional_rebars
+    total_rebars_used = rebar_id_start + total_additional_rebars
     print(f"\nOverall Total Waste: {total_waste_accumulated} inches")
     print(f"Total Standard Rebars Needed: {total_rebars_used}")
 

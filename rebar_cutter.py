@@ -186,19 +186,20 @@ def print_final_verification(df, final_verification):
 
 def main():
     # Setup command-line interface
-    # parser = argparse.ArgumentParser(description="Process Excel/CSV file for Rebar Optimization.")
-    # parser.add_argument("file_path", type=str, help="Path to the input Excel/CSV file.")
-    # parser.add_argument("-t", "--file_type", type=str, choices=['excel', 'csv'], default="excel", help="Type of the input file (excel or csv).")
+    parser = argparse.ArgumentParser(description="Process Excel/CSV file for Rebar Optimization.")
+    parser.add_argument("file_path", type=str, help="Path to the input Excel/CSV file.")
+    parser.add_argument("-t", "--file_type", type=str, choices=['excel', 'csv'], default="excel", help="Type of the input file (excel or csv).")
     
-    # Parse arguments
-    # args = parser.parse_args()
-    file_path = 'rebar_file.csv'#args.file_path
-    file_type = 'csv'#args.file_type
+    #Parse arguments
+    args = parser.parse_args()
+    file_path = args.file_path
+    file_type = args.file_type
 
     try:
         # Load data and preprocess
         if file_type == 'excel':
             df = pd.read_excel(file_path, engine='openpyxl', usecols=['Label', 'Count', 'Bar Length'])
+        # For csv files add -t csv at the end of the cmd line arguments
         elif file_type == 'csv':
             df = pd.read_csv(file_path, usecols=['Label', 'Count', 'Bar Length'])
         else:

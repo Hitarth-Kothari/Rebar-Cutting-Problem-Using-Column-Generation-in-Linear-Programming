@@ -55,6 +55,7 @@ def process_and_display_results(solution, patterns_matrix, labels, lengths, reba
             for length_index, length_count in enumerate(patterns_matrix[:, pattern_index].astype(int)):
                 if length_count > 0:
                     label = labels[length_index]
+                    length_count = min(length_count, quantities_needed[label] // pattern_use_count) if quantities_needed[label] // pattern_use_count > 0 else length_count
                     cut_instruction = f"  Cut {length_count} pieces of {lengths[length_index]} inches for {label}"
                     cuts.append(cut_instruction)
                     waste -= length_count * lengths[length_index]

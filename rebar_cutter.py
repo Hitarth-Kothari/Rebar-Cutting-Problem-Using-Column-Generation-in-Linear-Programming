@@ -90,29 +90,40 @@ def main_optimization(labels, lengths, quantities):
     return solution, patterns_matrix, labels, lengths
 
 def try_using_waste(labels, lengths, quantities_needed, waste_pieces, cutting_instructions, total_waste):
-    # Process to utilize waste pieces after all cuts are made
-    for i in range(len(waste_pieces)):
-        rebar_id = waste_pieces[i][0]
-        waste_piece = waste_pieces[i][1]
-        count = waste_pieces[i][2]
-        updated_cuts = cutting_instructions[i][1] if cutting_instructions[i][1] is not None else []
-        update_waste_instruction = cutting_instructions[i][0] if cutting_instructions[i][0] is not None else []
-        for label, length in zip(labels, lengths):
-            if length <= waste_piece and quantities_needed[label] > 0:
-                num_cuts_from_waste = int(waste_piece // length)
-                if num_cuts_from_waste > 0:
-                    instruction = f"  Cut {num_cuts_from_waste} pieces of {length} inches for {label}"
-                    updated_cuts.append(instruction)
-                    waste_piece -= length * num_cuts_from_waste
-                    total_waste -= length * num_cuts_from_waste*count
-                    quantities_needed[label] -= num_cuts_from_waste*count
-                    waste_pieces[i][0] = waste_piece  # Update the remaining waste piece after cutting
-                    update_waste_instruction = f"\nRebar {rebar_id} to {rebar_id + count - 1}:" + f" | Waste: {waste_piece*count} inches"
+    # Flag to keep track of whether any waste was reused during the iteration
+    waste_reused = True
 
-        # Update the cutting instructions with the additional cuts from waste
-        if updated_cuts:
-            cutting_instructions[i] = (update_waste_instruction, updated_cuts)
-    
+    while waste_reused:
+        waste_reused = False  # Reset flag for the new iteration
+
+        for i in range(len(waste_pieces)):
+            rebar_id, waste_piece, count = waste_pieces[i]
+            updated_cuts = cutting_instructions[i][1] if cutting_instructions[i][1] is not None else []
+            update_waste_instruction = cutting_instructions[i][0] if cutting_instructions[i][0] is not None else []
+
+            for label, length in zip(labels, lengths):
+                if length <= waste_piece and quantities_needed[label] > 0:
+                    num_cuts_from_waste = int(waste_piece // length)
+                    if num_cuts_from_waste > 0:
+                        # A successful reuse of waste has occurred
+                        waste_reused = True
+
+                        instruction = f"  Cut {num_cuts_from_waste} pieces of {length} inches for {label}"
+                        updated_cuts.append(instruction)
+                        waste_piece -= length * num_cuts_from_waste * count
+                        total_waste -= length * num_cuts_from_waste * count
+                        quantities_needed[label] -= num_cuts_from_waste * count
+                        waste_pieces[i][1] = waste_piece  # Update the remaining waste piece after cutting
+
+                        if waste_piece <= 0:
+                            # If the waste piece is fully utilized, update instruction to remove mention of waste
+                            update_waste_instruction = f"\nRebar {rebar_id} to {rebar_id + count - 1}: Fully utilized"
+                        else:
+                            update_waste_instruction = f"\nRebar {rebar_id} to {rebar_id + count - 1}: | Waste: {waste_piece * count} inches"
+
+            if updated_cuts:  # Only update if there are new cuts
+                cutting_instructions[i] = (update_waste_instruction, updated_cuts)
+
     return total_waste, quantities_needed, waste_pieces, cutting_instructions
 
 def wrapper_optimization_loop(df, chunk_size=56):
